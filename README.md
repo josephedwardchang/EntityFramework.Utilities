@@ -207,15 +207,11 @@ There are some special things to keep in mind when using EFUtilities. Here is a 
 - In SQLite EDM, there was a need to use StoreGenerated.Identity type in the column properties for primary keys. I only found IsComputed that is StoreGenerated.Computed (in EDM) being used and is not sufficient/correct. The way the UpdateAll() bulk operation needed was to make a SQLite temp table the same as the orig table columns, including the primary key ID column and the other columns to update...so much so that if it sees a column with primary key property, it will call bulk operation Insert() to insert the ID value into the temp table. However, it will not insert it as it is StoreGenerated.Computed (IsComputed == true). There will also be conflict with Insert() if this IsComputed == true is used, as it will then refuse to insert any primary key column at all. The Update() temp table needs the ID value properly filled up, otherwise the merge will fail later. To solve that, I used StoreGenerated.Identity (IsGeneratedId == true) (set in the EDM) to indicate that if this is an update, just Insert() the PK value into the temp table. And it works with Insert() on primary key column as well. It feels like a hack, though, as it shouldn't be this way for just for a temp table and also it works in SQL Server without it anyways...I dunno. Maybe SQL Server and SQLite works differently?
 - So to summarize how to use bulk operations for SQLite EF: 
 
-(1) In the SQLite EDM diagrams, set the columns for primary keys as StoreGenerated.Identity type (using other types will get you in trouble). 
-
-(2) Using StoreGenerated.Identity means that on InsertAll() it will add that PK column with null values and on UpdateAll() it will set the correct PK values in the temptable. 
-
-(3) Use the Async versions (UpdateAllAsync() and InsertAllAsync()) if you need it. Internally, the non-async versions will just call the async ones.
-
-(4) Minimum .Net v4.5 instead of v4.0
-
-(5) Using the System.Data.SQLite v3.32.1 and its EF providers.
+        (1) In the SQLite EDM diagrams, set the columns for primary keys as StoreGenerated.Identity type (using other types will get you in trouble on UpdateAll()).
+        (2) Using StoreGenerated.Identity means that on InsertAll() it will add that PK column with null values and on UpdateAll() it will set the correct PK values in the temptable.
+        (3) Use the Async versions (UpdateAllAsync() and InsertAllAsync()) if you need it. Internally, the non-async versions will just call the async ones.
+        (4) Minimum .Net v4.5 instead of v4.0
+        (5) Using the System.Data.SQLite v1.0.113.0 (SQLite v3.32.1) and its EF providers.
 
 ## Performance
 These methods are all about performance. Measuring performance should always be done in your context but some simple numbers might give you a hint.
