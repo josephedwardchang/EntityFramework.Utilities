@@ -259,7 +259,7 @@ Here is a test run with EntitityFramework.Utilities on a laptop doing operations
                delete all entities with a: 60ms
                delete all entities: 292ms
 
-For SQLite EF performace test:
+For SQLite EF performace test (under debug):
 
                Batch iteration with 800000 entities
                Insert entities: 50.484s
