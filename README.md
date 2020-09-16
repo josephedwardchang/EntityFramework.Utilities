@@ -2,43 +2,25 @@ This a fork that adds various features and bugfixes to the original EFUtilities 
 
 ## The goal
 
-Performance! EF is quite fast in many cases nowdays but doing CUD over many entities is slooooow. This is a solution for that.  
-
-EntityFramework.Utilities provides some batch operations for using EF that the EF team hasn't yet added for us. Suggestions are welcome! Pull requests are even more welcome:)
-
-Right now it's mostly to targeted at EF on SQL server but adding providers should be simple. 
-
-### Example
-
-Here is a small extract from the performance section later in the document.
-
-    Batch iteration with 25000 entities
-    Insert entities: 880ms
-    Update all entities with a: 189ms
-    Bulk update all with a random read: 153ms
-    delete all entities with a: 17ms
-    delete all entities: 282ms
-    
-    Standard iteration with 25000 entities
-    Insert entities: 8599ms
-    Update all entities with a: 360ms
-    Update all with a random read: 5779ms
-    delete all entities with a: 254ms
-    delete all entities: 5634ms
+Add support for SQLite EF provider (included here is System.Data.SQLite) to perform bulk operations (Insert, Update). 
+Add support for Async Tasks for the bulk operations
+Use .Net v4.5 minimum 
 
 ## Installing
 
 Right now this only works for DbContext. If anyone want to make a failing test or provide a sample project for any of the other variants it will probably be easy to fix.
 
-### EF 6.1.3+
+### EF 6.3+
 
 Any package from 1.0.3 and up should work.
 
-Nuget package https://www.nuget.org/packages/RudeySH.EFUtilities/ 
+No Nuget package yet
 
 ## Utility methods 
 
 These methods are small helpers that make certain things easier. Most of them work against context so they should be provider independent. It will be stated when this is not the case.
+
+Now has support for SQLite EF bulk operations.
 
 ### Update single values on an entity
 
@@ -228,6 +210,9 @@ There are some special things to keep in mind when using EFUtilities. Here is a 
 - Update and Delete is quite "hacky". They work by pretending it was a regular where and take the generated sql (not hitting db) then altering this sql for update or delete. If you use joins that might not work. It will work for simple things but if you are doing complex stuff it might not be powerful enough. 
 - All 3 methods works in a way that doesn't really align with the DbContext, things are saved before SaveChanges are called, validation is not done, new ids are not returned and changes aren't synced to entities loaded into the context. This is the reason the methods are placed on ``EFBatchOperation``, to make sure it's clear this is working outside the normal conventions.
 - Because particulary Update/Delete are implemented using hacks that depend on the generated sql from EF I would encourage you to add integrations tests whenever you use these methods. Actually I would encourage you to always do that but that is another story. With integrations tests you will be warned if an EF update break EFUtilities and avoid any unpleasant suprises in production. 
+- To support SQLite EF, it includes System.Data.SQLite nuget package (there may be other SQLite EF provider you might want to use).
+- To support Async/Await Tasks, it uses .Net v4.5 now instead of v4.0. Converting to async was straightforward, i.e., all DBContext operations have Async versions like SaveChanges() now uses SaveChangesAsync() with an await, so there are no major asynchronous recodes that was done. These await/async may need to be reworked to take advantage of Tasks now having parallel abilites.
+- In SQLite EDM, there was a need to use StoreGenerated.Identity type in the column properties for primary keys. I only found IsComputed that is StoreGenerated.Computed being used but is not sufficient. The way the UpdateAll() bulk operation needed was to make a SQLite temp table the same as the orig table columns so much so that if it sees a column with primarykey property it will call bulk operation Insert() to insert the ID value into the temp table. However, it will not insert it as it is StoreGeneratedComputed (IsComputed == true). The temp table needs the ID value properly filled up, otherwise the merge will fail later. To solve that, I used StoreGenerated.Identity (IsGeneratedId == true) (set in the EDM) to indicate that if this is an update, just Insert() the PK value into the temp table. It feels like a hack though, as it shouldn't be this way for a temp table and it works in SQL Server without it anyways...I dunno.
 
 ## Performance
 These methods are all about performance. Measuring performance should always be done in your context but some simple numbers might give you a hint.
@@ -272,6 +257,14 @@ Here is a test run with EntitityFramework.Utilities on a laptop doing operations
                delete all entities with a: 60ms
                delete all entities: 292ms
 
+For SQLite EF performace test:
+
+               Batch iteration with 800000 entities
+               Insert entities: 50.484s
+               Update all entities with a: not tested
+               delete all entities with a: not tested
+               delete all entities: not tested
+               file size 100M Bytes
 
 This is on an ultrabook. Here I don't compare to anything so it's just to give you some overview about what to expect. Note that in the batchmode around 100k entities/sec are added when reaching larger datasets. 
 
