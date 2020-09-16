@@ -1,4 +1,4 @@
-This a fork that adds various features and bugfixes to the original EFUtilities by Mikael Eliasson. Below is a modified version of the original README.md.
+This a fork from RudeySH that adds various features and bugfixes to the original EFUtilities by Mikael Eliasson. Below is a modified version of the original README.md.
 
 ## The goal
 
@@ -11,18 +11,20 @@ Add support for Async/Await Tasks for the bulk operations and as a consequence .
 ## Installing
 
 Right now this only works for DbContext. If anyone want to make a failing test or provide a sample project for any of the other variants it will probably be easy to fix.
+To use this in VS2017, need to install SQLite tools from here: http://erikej.blogspot.com/2018/03/using-entity-framework-6-and-sqlite.html and any SQLite database manager to be able to open SQLite databases you create.
+I include the html page in the project in folder "3rdParty", just in case the website goes down.
 
 ### EF 6.3+
 
-Any package from 1.0.3 and up should work.
+This fork is set at v1.0.5 after changes made from RudeySH's version. His version was working on my tests more than the original EntityFramework.Utilities. But of course, I need to say thanks to both projects as without them, I wouldn't have a fast code on both SQL Server and SQLite EF. So many thanks to them!
 
-No Nuget package yet. I couldn't make the Tests build properly, however the main project does build.
+No Nuget package yet.
 
 ## Utility methods 
 
 These methods are small helpers that make certain things easier. Most of them work against context so they should be provider independent. It will be stated when this is not the case.
 
-Now has support for SQLite EF bulk operations.
+Now has support for SQLite EF bulk operations using System.Data.SQLite provider.
 
 ### Update single values on an entity
 
@@ -55,9 +57,9 @@ WHERE ([ID] = @1)
 
 REQUIRES: using EntityFramework.Utilities;
 
-The standard EF Include is really really slow to use. They reason is that it cross joins the child records against the parent which means you load a significant amount of duplicate data. This means more data to transfer, more data to parse, more memory etc etc. 
+The standard EF Include is really really slow to use. The reason is that it cross joins the child records against the parent which means you load a significant amount of duplicate data. This means more data to transfer, more data to parse, more memory etc etc. 
 
-Include EFU on the other hand runs two parallel queries and stitch the data toghether in memory.
+Include EFU on the other hand runs two parallel queries and stitch the data together in memory.
 
 A very basic query:
 
@@ -125,7 +127,7 @@ Allows you to insert many entities in a very performant way instead of adding th
             }
 ```
 
-SqlBulkCopy is used under the covers if you are running against SqlServer. If you are not running against SqlServer it will default to doing the normal inserts.
+SqlBulkCopy is used under the covers if you are running against SqlServer or SQLite (running in native bulk insert/update not SQLBulkCopy). If you are NOT running against said databases it will default to doing the normal inserts.
 
 #### Inheritance and Bulk insert
 
@@ -156,7 +158,7 @@ foreach (var item in commentsFromDb)
 EFBatchOperation.For(db, db.Comments).UpdateAll(commentsFromDb, x => x.ColumnsToUpdate(c => c.Reads));
 ```
 
-SqlBulkCopy is used under the covers if you are running against SqlServer. If you are not running against SqlServer it will default to doing the normal inserts.
+SqlBulkCopy is used under the covers if you are running against SqlServer or SQLite (running in native bulk insert/update not SQLBulkCopy). If you are NOT running against said databases it will default to doing the normal update.
 
 #### Partial updates / Not loading the data from DB first
 
@@ -169,19 +171,6 @@ var lines = csv.ReadAllLines().Select(l => l.Split(";"));
 var comments = lines.Select(line => new Comment{ Id = int.Parse(line[0]), Reads = int.Parse(line[1]) });
 EFBatchOperation.For(db, db.Comments).UpdateAll(comments, x => x.ColumnsToUpdate(c => c.Reads));
 ```
-
-#### Inheritance and Bulk insert
-
-Not tested but most likely TPH will work as the code is very similar to InsertAll
-
-#### Transactions
-
-If your best choice is using TransactionScope. See example here https://github.com/MikaelEliasson/EntityFramework.Utilities/issues/26
-
-#### Making it work with profilers
-
-Profilers like MiniProfilers wrap the connection. EFUtilities need a "pure" connection. 
-One of the arguments is a connection that you can supply. 
 
 #### Permissions
 
@@ -212,9 +201,16 @@ There are some special things to keep in mind when using EFUtilities. Here is a 
 - Update and Delete is quite "hacky". They work by pretending it was a regular where and take the generated sql (not hitting db) then altering this sql for update or delete. If you use joins that might not work. It will work for simple things but if you are doing complex stuff it might not be powerful enough. 
 - All 3 methods works in a way that doesn't really align with the DbContext, things are saved before SaveChanges are called, validation is not done, new ids are not returned and changes aren't synced to entities loaded into the context. This is the reason the methods are placed on ``EFBatchOperation``, to make sure it's clear this is working outside the normal conventions.
 - Because particulary Update/Delete are implemented using hacks that depend on the generated sql from EF I would encourage you to add integrations tests whenever you use these methods. Actually I would encourage you to always do that but that is another story. With integrations tests you will be warned if an EF update break EFUtilities and avoid any unpleasant suprises in production. 
-- To support SQLite EF, it includes System.Data.SQLite nuget package (there may be other SQLite EF provider you might want to use).
+- To support SQLite EF, it includes System.Data.SQLite nuget package (there may be other SQLite EF provider you may want to use, just replace accordingly).
 - To support Async/Await Tasks, it uses .Net v4.5 now instead of v4.0. Converting to async was straightforward, i.e., all DBContext operations have Async versions like SaveChanges() now uses SaveChangesAsync() with an await, so there are no major asynchronous recodes that was done. These await/async may need to be reworked to take advantage of Tasks now having parallel abilites.
-- In SQLite EDM, there was a need to use StoreGenerated.Identity type in the column properties for primary keys. I only found IsComputed that is StoreGenerated.Computed being used but is not sufficient. The way the UpdateAll() bulk operation needed was to make a SQLite temp table the same as the orig table columns so much so that if it sees a column with primarykey property it will call bulk operation Insert() to insert the ID value into the temp table. However, it will not insert it as it is StoreGeneratedComputed (IsComputed == true). The temp table needs the ID value properly filled up, otherwise the merge will fail later. To solve that, I used StoreGenerated.Identity (IsGeneratedId == true) (set in the EDM) to indicate that if this is an update, just Insert() the PK value into the temp table. It feels like a hack though, as it shouldn't be this way for a temp table and it works in SQL Server without it anyways...I dunno.
+- In SQLite, the InsertAll() bulk operation is using chunks of 100k rows in code, but is not yet implemented to use SAVEPOINT/RELEASE per chunk as it is unknown from performance standpoint. To Do: test performance of SAVEPOINT chunking in InsertAll(). 
+- In SQLite EDM, there was a need to use StoreGenerated.Identity type in the column properties for primary keys. I only found IsComputed that is StoreGenerated.Computed (in EDM) being used and is not sufficient/correct. The way the UpdateAll() bulk operation needed was to make a SQLite temp table the same as the orig table columns, including the primary key ID column and the other columns to update...so much so that if it sees a column with primary key property, it will call bulk operation Insert() to insert the ID value into the temp table. However, it will not insert it as it is StoreGenerated.Computed (IsComputed == true). There will also be conflict with Insert() if this IsComputed == true is used, as it will then refuse to insert any primary key column at all. The Update() temp table needs the ID value properly filled up, otherwise the merge will fail later. To solve that, I used StoreGenerated.Identity (IsGeneratedId == true) (set in the EDM) to indicate that if this is an update, just Insert() the PK value into the temp table. And it works with Insert() on primary key column as well. It feels like a hack, though, as it shouldn't be this way for just for a temp table and also it works in SQL Server without it anyways...I dunno. Maybe SQL Server and SQLite works differently?
+- So to summarize how to use bulk operations for SQLite EF: 
+(1) In the SQLite EDM diagrams, set the columns for primary keys as StoreGenerated.Identity type (using other types will get you in trouble). 
+(2) Using StoreGenerated.Identity means that on InsertAll() it will add that PK column with null values and on UpdateAll() it will set the correct PK values in the temptable. 
+(3) Use the Async versions (UpdateAllAsync() and InsertAllAsync()) if you need it. Internally, the non-async versions will just call the async ones.
+(4) Minimum .Net v4.5 instead of v4.0
+(5) Using the System.Data.SQLite v3.32.1 and its EF providers.
 
 ## Performance
 These methods are all about performance. Measuring performance should always be done in your context but some simple numbers might give you a hint.
@@ -266,7 +262,6 @@ For SQLite EF performace test (under debug):
                Update all entities with a: not tested
                delete all entities with a: not tested
                delete all entities: not tested
-               file size 100M Bytes
 
 This is on an ultrabook. Here I don't compare to anything so it's just to give you some overview about what to expect. Note that in the batchmode around 100k entities/sec are added when reaching larger datasets. 
 

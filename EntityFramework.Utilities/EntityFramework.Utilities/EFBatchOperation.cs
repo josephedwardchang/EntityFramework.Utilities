@@ -9,6 +9,7 @@ using System.Data.SqlClient;
 using System.Globalization;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Threading.Tasks;
 
 namespace EntityFramework.Utilities
 {
@@ -20,6 +21,7 @@ namespace EntityFramework.Utilities
 		/// <param name="items">The items to insert</param>
 		/// <param name="connection">The DbConnection to use for the insert. Only needed when for example a profiler wraps the connection. Then you need to provide a connection of the type the provider use.</param>
 		/// <param name="batchSize">The size of each batch. Default depends on the provider. SqlProvider uses 15000 as default</param>
+		Task InsertAllAsync<TEntity>(IEnumerable<TEntity> items, DbConnection connection = null, int? batchSize = null, int? executeTimeout = null, SqlBulkCopyOptions copyOptions = SqlBulkCopyOptions.Default, DbTransaction transaction = null) where TEntity : class, T;
 		void InsertAll<TEntity>(IEnumerable<TEntity> items, DbConnection connection = null, int? batchSize = null, int? executeTimeout = null, SqlBulkCopyOptions copyOptions = SqlBulkCopyOptions.Default, DbTransaction transaction = null) where TEntity : class, T;
 		IEFBatchOperationFiltered<T> Where(Expression<Func<T, bool>> predicate);
 
@@ -31,6 +33,7 @@ namespace EntityFramework.Utilities
 		/// <param name="updateSpecification">Define which columns to update</param>
 		/// <param name="connection">The DbConnection to use for the insert. Only needed when for example a profiler wraps the connection. Then you need to provide a connection of the type the provider use.</param>
 		/// <param name="batchSize">The size of each batch. Default depends on the provider. SqlProvider uses 15000 as default</param>
+		Task UpdateAllAsync<TEntity>(IEnumerable<TEntity> items, Action<UpdateSpecification<TEntity>> updateSpecification, DbConnection connection = null, int? batchSize = null, int? executeTimeout = null, SqlBulkCopyOptions copyOptions = SqlBulkCopyOptions.Default, DbTransaction transaction = null) where TEntity : class, T;
 		void UpdateAll<TEntity>(IEnumerable<TEntity> items, Action<UpdateSpecification<TEntity>> updateSpecification, DbConnection connection = null, int? batchSize = null, int? executeTimeout = null, SqlBulkCopyOptions copyOptions = SqlBulkCopyOptions.Default, DbTransaction transaction = null) where TEntity : class, T;
 	}
 
@@ -83,11 +86,11 @@ namespace EntityFramework.Utilities
 			_context = (context as IObjectContextAdapter).ObjectContext;
 		}
 
-		public static IEFBatchOperationBase<T> For<TContext, T>(TContext context, IDbSet<T> set)
-			where TContext : DbContext
-			where T : class
+		public static IEFBatchOperationBase<T1> For<TContext1, T1>(TContext1 context, IDbSet<T1> set)
+			where TContext1 : DbContext
+			where T1 : class
 		{
-			return new EFBatchOperation<TContext, T>(context);
+			return new EFBatchOperation<TContext1, T1>(context);
 		}
 
 		/// <summary>
@@ -96,7 +99,14 @@ namespace EntityFramework.Utilities
 		/// <param name="items">The items to insert</param>
 		/// <param name="connection">The DbConnection to use for the insert. Only needed when for example a profiler wraps the connection. Then you need to provide a connection of the type the provider use.</param>
 		/// <param name="batchSize">The size of each batch. Default depends on the provider. SqlProvider uses 15000 as default</param>
-		public void InsertAll<TEntity>(IEnumerable<TEntity> items, DbConnection connection = null, int? batchSize = null, int? executeTimeout = null, SqlBulkCopyOptions copyOptions = SqlBulkCopyOptions.Default, DbTransaction transaction = null) where TEntity : class, T
+		public void InsertAll<TEntity>(IEnumerable<TEntity> items, DbConnection connection = null, int? batchSize = null, int? executeTimeout = null, SqlBulkCopyOptions copyOptions = SqlBulkCopyOptions.Default, DbTransaction transaction = null)
+			where TEntity : class, T
+		{
+			InsertAllAsync(items, connection, batchSize, executeTimeout, copyOptions, transaction).Wait();
+		}
+
+		public async Task InsertAllAsync<TEntity>(IEnumerable<TEntity> items, DbConnection connection = null, int? batchSize = null, int? executeTimeout = null, SqlBulkCopyOptions copyOptions = SqlBulkCopyOptions.Default, DbTransaction transaction = null)
+			where TEntity : class, T
 		{
 			var con = _context.Connection as EntityConnection;
 			if (con == null && connection == null)
@@ -119,7 +129,16 @@ namespace EntityFramework.Utilities
 				var properties = tableMapping.PropertyMappings
 					.Where(p => currentType.IsSubclassOf(p.ForEntityType) || p.ForEntityType == currentType)
 					.Where(p => p.IsComputed == false)
-					.Select(p => new ColumnMapping { NameInDatabase = p.ColumnName, NameOnObject = p.PropertyName }).ToList();
+					.Select(p => new ColumnMapping
+                    {
+                        NameInDatabase = p.ColumnName,
+                        NameOnObject = p.PropertyName,
+                        IsPrimaryKey = p.IsPrimaryKey,
+                        DataType = p.DataType,
+                        DataTypeFull = p.DataTypeFull,
+                        IsComputed = p.IsComputed,
+                        IsGeneratedId = p.IsGeneratedId
+                    }).ToList();
 
 				if (tableMapping.TphConfiguration != null)
 				{
@@ -130,7 +149,7 @@ namespace EntityFramework.Utilities
 					});
 				}
 
-				provider.InsertItems(items, tableMapping.Schema, tableMapping.TableName, properties, connectionToUse, batchSize, executeTimeout, copyOptions, transaction);
+				await provider.InsertItems(items, tableMapping.Schema, tableMapping.TableName, properties, connectionToUse, batchSize, executeTimeout, transaction, copyOptions);
 				return;
 			}
 
@@ -139,6 +158,11 @@ namespace EntityFramework.Utilities
 		}
 
 		public void UpdateAll<TEntity>(IEnumerable<TEntity> items, Action<UpdateSpecification<TEntity>> updateSpecification, DbConnection connection = null, int? batchSize = null, int? executeTimeout = null, SqlBulkCopyOptions copyOptions = SqlBulkCopyOptions.Default, DbTransaction transaction = null) where TEntity : class, T
+		{
+			UpdateAllAsync(items, updateSpecification, connection, batchSize, executeTimeout, copyOptions, transaction).Wait();
+		}
+
+		public async Task UpdateAllAsync<TEntity>(IEnumerable<TEntity> items, Action<UpdateSpecification<TEntity>> updateSpecification, DbConnection connection = null, int? batchSize = null, int? executeTimeout = null, SqlBulkCopyOptions copyOptions = SqlBulkCopyOptions.Default, DbTransaction transaction = null) where TEntity : class, T
 		{
 			var con = _context.Connection as EntityConnection;
 			if (con == null && connection == null)
@@ -170,13 +194,15 @@ namespace EntityFramework.Utilities
 						NameOnObject = p.PropertyName,
 						DataType = p.DataType,
 						DataTypeFull = p.DataTypeFull,
-						IsPrimaryKey = p.IsPrimaryKey
-					}).ToList();
+						IsPrimaryKey = p.IsPrimaryKey,
+                        IsComputed = p.IsComputed,
+                        IsGeneratedId = p.IsGeneratedId
+                    }).ToList();
 
 				var spec = new UpdateSpecification<TEntity>();
 				updateSpecification(spec);
 				var insertConnection = !(connectionToUse is SqlConnection) && con?.StoreConnection is SqlConnection ? con.StoreConnection : connectionToUse;
-				provider.UpdateItems(items, tableMapping.Schema, tableMapping.TableName, properties, connectionToUse, batchSize, spec, executeTimeout, copyOptions, transaction, insertConnection);
+				await provider.UpdateItems(items, tableMapping.Schema, tableMapping.TableName, properties, connectionToUse, batchSize, spec, executeTimeout, transaction, insertConnection, copyOptions);
 				return;
 			}
 

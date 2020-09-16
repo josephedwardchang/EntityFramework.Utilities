@@ -11,5 +11,7 @@ namespace EntityFramework.Utilities
 		public string DataType { get; set; }
 		public string DataTypeFull { get; set; }
 		public bool IsPrimaryKey { get; set; }
-	}
+        public bool IsComputed { get; set; }
+        public bool IsGeneratedId { get; set; }
+    }
 }

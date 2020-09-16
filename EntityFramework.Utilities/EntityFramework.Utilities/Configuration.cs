@@ -7,7 +7,7 @@ namespace EntityFramework.Utilities
 	{
 		static Configuration()
 		{
-			Providers = new List<IQueryProvider> { new SqlQueryProvider() };
+			Providers = new List<IQueryProvider> { new SqlQueryProvider(), new SqliteQueryProvider() };
 
 			Log = m => { };
 

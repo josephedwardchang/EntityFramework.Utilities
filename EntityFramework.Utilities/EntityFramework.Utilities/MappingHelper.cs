@@ -87,8 +87,15 @@ namespace EntityFramework.Utilities
 		public bool IsPrimaryKey { get; set; }
 
 		public string DataTypeFull { get; set; }
+        /// <summary>
+        /// IsComputed is the StoreGenerated type Computed in EDM
+        /// </summary>
 		public bool IsComputed { get; set; }
-	}
+        /// <summary>
+        /// IsGeneratedId is the StoreGenerated type Identity in EDM
+        /// </summary>
+        public bool IsGeneratedId { get; set; }
+    }
 
 	/// <summary>
 	/// Represents that mapping between entity types and tables in an EF model
@@ -166,7 +173,8 @@ namespace EntityFramework.Utilities
 							DataTypeFull = GetFullTypeName(scalar),
 							PropertyName = path + scalar.Property.Name,
 							ForEntityType = t,
-							IsComputed = scalar.Column.IsStoreGeneratedComputed
+							IsComputed = scalar.Column.IsStoreGeneratedComputed,
+                            IsGeneratedId = scalar.Column.IsStoreGeneratedIdentity
 						});
 					}
 				};

@@ -4,6 +4,7 @@ using System.Data.Common;
 using System.Data.SqlClient;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 
 namespace EntityFramework.Utilities
 {
@@ -49,7 +50,7 @@ namespace EntityFramework.Utilities
 				$"UPDATE [{predicateQueryInfo.Schema}].[{predicateQueryInfo.Table}] SET {updateSql} {predicateQueryInfo.WhereSql}";
 		}
 
-		public void InsertItems<T>(IEnumerable<T> items, string schema, string tableName, IList<ColumnMapping> properties, DbConnection storeConnection, int? batchSize, int? executeTimeout, SqlBulkCopyOptions copyOptions, DbTransaction transaction)
+		public async Task InsertItems<T>(IEnumerable<T> items, string schema, string tableName, IList<ColumnMapping> properties, DbConnection storeConnection, int? batchSize, int? executeTimeout, DbTransaction transaction, object copyOptions)
 		{
 			using (var reader = new EFDataReader<T>(items, properties))
 			{
@@ -58,7 +59,7 @@ namespace EntityFramework.Utilities
 					storeConnection.Open();
 				}
 
-				using (var copy = new SqlBulkCopy((SqlConnection)storeConnection, copyOptions, transaction as SqlTransaction))
+				using (var copy = new SqlBulkCopy((SqlConnection)storeConnection, (SqlBulkCopyOptions)copyOptions, transaction as SqlTransaction))
 				{
 					copy.BulkCopyTimeout = executeTimeout ?? 600;
 					copy.BatchSize = batchSize ?? 15000; //default batch size
@@ -79,13 +80,13 @@ namespace EntityFramework.Utilities
 						copy.ColumnMappings.Add(i, properties[i].NameInDatabase);
 					}
 
-					copy.WriteToServer(reader);
+					await copy.WriteToServerAsync(reader);
 					copy.Close();
 				}
 			}
 		}
 
-		public void UpdateItems<T>(IEnumerable<T> items, string schema, string tableName, IList<ColumnMapping> properties, DbConnection storeConnection, int? batchSize, UpdateSpecification<T> updateSpecification, int? executeTimeout, SqlBulkCopyOptions copyOptions, DbTransaction transaction, DbConnection insertConnection)
+		public async Task UpdateItems<T>(IEnumerable<T> items, string schema, string tableName, IList<ColumnMapping> properties, DbConnection storeConnection, int? batchSize, UpdateSpecification<T> updateSpecification, int? executeTimeout, DbTransaction transaction, DbConnection insertConnection, object copyOptions)
 		{
 			var tempTableName = "#" + Guid.NewGuid().ToString("N");
 			var columnsToUpdate = updateSpecification.Properties.Select(p => p.GetPropertyName()).ToDictionary(x => x);
@@ -130,7 +131,7 @@ namespace EntityFramework.Utilities
 				dCommand.Transaction = transaction;
 
 				createCommand.ExecuteNonQuery();
-				InsertItems(items, schema, tempTableName, filtered, insertConnection, batchSize, executeTimeout, copyOptions, transaction);
+				await InsertItems(items, schema, tempTableName, filtered, insertConnection, batchSize, executeTimeout, transaction, (SqlBulkCopyOptions)copyOptions);
 				mCommand.ExecuteNonQuery();
 				dCommand.ExecuteNonQuery();
 			}

@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations.Schema;
+﻿
 
 namespace Tests.Models
 {
@@ -9,7 +9,7 @@ namespace Tests.Models
 		public ComplexTypeObject ComplexType { get; set; } = new ComplexTypeObject();
 	}
 
-	[ComplexType]
+	//[ComplexType]
 	public class ComplexTypeObject
 	{
 		public string Name { get; set; }
@@ -17,7 +17,7 @@ namespace Tests.Models
 		public AnotherComplexTypeObject Another { get; set; } = new AnotherComplexTypeObject();
 	}
 
-	[ComplexType]
+	//[ComplexType]
 	public class AnotherComplexTypeObject
 	{
 		public string Name { get; set; }

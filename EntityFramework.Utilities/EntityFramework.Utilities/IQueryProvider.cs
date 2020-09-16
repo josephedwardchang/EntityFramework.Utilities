@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Data.Common;
-using System.Data.SqlClient;
+using System.Threading.Tasks;
 
 namespace EntityFramework.Utilities
 {
@@ -13,8 +13,11 @@ namespace EntityFramework.Utilities
 
 		string GetDeleteQuery(QueryInformation queryInformation);
 		string GetUpdateQuery(QueryInformation predicateQueryInfo, QueryInformation modificationQueryInfo);
-		void InsertItems<T>(IEnumerable<T> items, string schema, string tableName, IList<ColumnMapping> properties, DbConnection storeConnection, int? batchSize, int? executeTimeout, SqlBulkCopyOptions copyOptions, DbTransaction transaction);
-		void UpdateItems<T>(IEnumerable<T> items, string schema, string tableName, IList<ColumnMapping> properties, DbConnection storeConnection, int? batchSize, UpdateSpecification<T> updateSpecification, int? executeTimeout, SqlBulkCopyOptions copyOptions, DbTransaction transaction, DbConnection insertConnection);
+		
+		// made the SQLBulkCopyOptions as object to support SQLite bulk functionality but SQLBulkCopyOptions is not used by SQLite provider
+		// in short, copyOptions is made into a generic type to support SQLite EF bulk operations
+		Task InsertItems<T>(IEnumerable<T> items, string schema, string tableName, IList<ColumnMapping> properties, DbConnection storeConnection, int? batchSize, int? executeTimeout, DbTransaction transaction, object copyOptions);
+		Task UpdateItems<T>(IEnumerable<T> items, string schema, string tableName, IList<ColumnMapping> properties, DbConnection storeConnection, int? batchSize, UpdateSpecification<T> updateSpecification, int? executeTimeout, DbTransaction transaction, DbConnection insertConnection, object copyOptions);
 
 		bool CanHandle(DbConnection storeConnection);
 
