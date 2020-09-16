@@ -3,8 +3,10 @@ This a fork that adds various features and bugfixes to the original EFUtilities 
 ## The goal
 
 Add support for SQLite EF provider (included here is System.Data.SQLite) to perform bulk operations (Insert, Update). 
-Add support for Async Tasks for the bulk operations
-Use .Net v4.5 minimum 
+
+Add support for Async Tasks for the bulk operations.
+
+Use .Net v4.5 minimum.
 
 ## Installing
 
