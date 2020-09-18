@@ -13,5 +13,6 @@ namespace EntityFramework.Utilities
 		public bool IsPrimaryKey { get; set; }
         public bool IsComputed { get; set; }
         public bool IsGeneratedId { get; set; }
+        public object DefaultVal { get; set; }
     }
 }

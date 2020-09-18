@@ -212,6 +212,7 @@ There are some special things to keep in mind when using EFUtilities. Here is a 
         (3) Use the Async versions (UpdateAllAsync() and InsertAllAsync()) if you need it. Internally, the non-async versions will just call the async ones.
         (4) Minimum .Net v4.5 instead of v4.0
         (5) Using the System.Data.SQLite v1.0.113.0 (SQLite v3.32.1) and its EF providers.
+        (6) In vs2017 EDM, you can set default values for the columns. If the column is non-nullable and the column value is null, it will use that EDM default value.
 
 ## Performance
 These methods are all about performance. Measuring performance should always be done in your context but some simple numbers might give you a hint.

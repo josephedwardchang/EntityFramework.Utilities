@@ -126,7 +126,10 @@ namespace EntityFramework.Utilities
 				var typeMapping = mapping.TypeMappings[typeof(T)];
 				var tableMapping = typeMapping.TableMappings.First();
 
-				var properties = tableMapping.PropertyMappings
+                var entitySet = _context.CreateObjectSet<TEntity>().EntitySet;
+                var fields = entitySet.ElementType.Properties;
+
+                var properties = tableMapping.PropertyMappings
 					.Where(p => currentType.IsSubclassOf(p.ForEntityType) || p.ForEntityType == currentType)
 					.Where(p => p.IsComputed == false)
 					.Select(p => new ColumnMapping
@@ -137,7 +140,8 @@ namespace EntityFramework.Utilities
                         DataType = p.DataType,
                         DataTypeFull = p.DataTypeFull,
                         IsComputed = p.IsComputed,
-                        IsGeneratedId = p.IsGeneratedId
+                        IsGeneratedId = p.IsGeneratedId,
+                        DefaultVal = fields[p.PropertyName].DefaultValue
                     }).ToList();
 
 				if (tableMapping.TphConfiguration != null)
@@ -185,7 +189,10 @@ namespace EntityFramework.Utilities
 				var typeMapping = mapping.TypeMappings[typeof(T)];
 				var tableMapping = typeMapping.TableMappings.First();
 
-				var properties = tableMapping.PropertyMappings
+                var entitySet = _context.CreateObjectSet<TEntity>().EntitySet;
+                var fields = entitySet.ElementType.Properties;
+
+                var properties = tableMapping.PropertyMappings
 					.Where(p => currentType.IsSubclassOf(p.ForEntityType) || p.ForEntityType == currentType)
 					.Where(p => p.IsComputed == false)
 					.Select(p => new ColumnMapping
@@ -196,7 +203,8 @@ namespace EntityFramework.Utilities
 						DataTypeFull = p.DataTypeFull,
 						IsPrimaryKey = p.IsPrimaryKey,
                         IsComputed = p.IsComputed,
-                        IsGeneratedId = p.IsGeneratedId
+                        IsGeneratedId = p.IsGeneratedId,
+                        DefaultVal = fields[p.PropertyName].DefaultValue
                     }).ToList();
 
 				var spec = new UpdateSpecification<TEntity>();
