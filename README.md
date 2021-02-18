@@ -12,7 +12,7 @@ Add support for Async/Await Tasks for the bulk operations and as a consequence .
 
 Right now this only works for DbContext. If anyone want to make a failing test or provide a sample project for any of the other variants it will probably be easy to fix.
 To use this in VS2017, need to install SQLite tools from here: http://erikej.blogspot.com/2018/03/using-entity-framework-6-and-sqlite.html and any SQLite database manager to be able to open SQLite databases you create.
-I include the html page in the project in folder "3rdParty", just in case the website goes down.
+I include the orig html page in the project (see in folder "3rdParty"), just in case the website goes down.
 
 ### EF 6.3+
 
@@ -94,13 +94,13 @@ Drops the mssql database even if it has connections open. Solves the problem whe
 
 ## Batch operations
 
-These methods all work outside the normal EF pipeline and are located on the EFBatchOperation class. The design decision behind this choice is to make it clear you are NOT working against the context when using these methods. That's means change tracking, and 2nd level cache or validation will NOT be run. This is for pure performance and nothing less. These methods are also highly provider dependent. Right now the only existing provider is for Sql Server but it should be easy to add others.
+These methods all work outside the normal EF pipeline and are located on the EFBatchOperation class. The design decision behind this choice is to make it clear you are NOT working against the context when using these methods. That means change tracking, and 2nd level cache or validation will NOT be run. This is for pure performance and nothing less. These methods are also highly provider dependent. Right now the only existing provider is for Sql Server and SQLite but it should be easy to add others.
 
 ### Configuration
 
 EFUtilities supports some simple global settings. You can enable logging and control if default fallbacks should be used and add new Providers.
 
-See https://github.com/RudeySH/EntityFramework.Utilities/blob/master/EntityFramework.Utilities/EntityFramework.Utilities/Configuration.cs for the options
+See https://github.com/josephedwardchang/EntityFramework.Utilities/blob/master/EntityFramework.Utilities/EntityFramework.Utilities/Configuration.cs for the options
 
 ### Delete by query
 
@@ -118,7 +118,7 @@ var count = EFBatchOperation.For(db, db.BlogPosts).Where(b => b.Created < upper 
 ### Batch insert entities
 
 
-Allows you to insert many entities in a very performant way instead of adding them one by one as you normally would do with EF. The benefit is superior performance, the disadvantage is that EF will no longer validate any contraits for you and you will not get the ids back if they are store generated. You cannot insert relationships this way either.
+Allows you to insert many entities in a very performant way instead of adding them one by one as you normally would do with EF. The benefit is superior performance, the disadvantage is that EF will no longer validate any constraints for you and you will not get the ids back if they are store generated. You cannot insert relationships this way either.
 
 ```c#
             using (var db = new YourDbContext())
@@ -127,7 +127,7 @@ Allows you to insert many entities in a very performant way instead of adding th
             }
 ```
 
-SqlBulkCopy is used under the covers if you are running against SqlServer or SQLite (running in native bulk insert/update not SQLBulkCopy). If you are NOT running against said databases it will default to doing the normal inserts.
+SqlBulkCopy is used under the covers if you are running against SqlServer or SQLite (SQLite running in native bulk insert/update not SQLBulkCopy). If you are NOT running against said databases it will default to doing the normal inserts.
 
 #### Inheritance and Bulk insert
 
@@ -158,7 +158,7 @@ foreach (var item in commentsFromDb)
 EFBatchOperation.For(db, db.Comments).UpdateAll(commentsFromDb, x => x.ColumnsToUpdate(c => c.Reads));
 ```
 
-SqlBulkCopy is used under the covers if you are running against SqlServer or SQLite (running in native bulk insert/update not SQLBulkCopy). If you are NOT running against said databases it will default to doing the normal update.
+SqlBulkCopy is used under the covers if you are running against SqlServer or SQLite (SQLite running in native bulk insert/update not SQLBulkCopy). If you are NOT running against said databases it will default to doing the normal update.
 
 #### Partial updates / Not loading the data from DB first
 
@@ -204,11 +204,11 @@ There are some special things to keep in mind when using EFUtilities. Here is a 
 - To support SQLite EF, it includes System.Data.SQLite nuget package (there may be other SQLite EF provider you may want to use, just replace accordingly).
 - To support Async/Await Tasks, it uses .Net v4.5 now instead of v4.0. Converting to async was straightforward, i.e., all DBContext operations have Async versions like SaveChanges() now uses SaveChangesAsync() with an await, so there are no major asynchronous recodes that was done. These await/async may need to be reworked to take advantage of Tasks now having parallel abilites.
 - In SQLite, the InsertAll() bulk operation is using chunks of 100k rows in code, but is not yet implemented to use SAVEPOINT/RELEASE per chunk as it is unknown from performance standpoint. To Do: test performance of SAVEPOINT chunking in InsertAll(). 
-- In SQLite EDM, there was a need to use StoreGenerated.Identity type in the column properties for primary keys. I only found IsComputed that is StoreGenerated.Computed (in EDM) being used and is not sufficient/correct. The way the UpdateAll() bulk operation needed was to make a SQLite temp table the same as the orig table columns, including the primary key ID column and the other columns to update...so much so that if it sees a column with primary key property, it will call bulk operation Insert() to insert the ID value into the temp table. However, it will not insert it as it is StoreGenerated.Computed (IsComputed == true). There will also be conflict with Insert() if this IsComputed == true is used, as it will then refuse to insert any primary key column at all. The Update() temp table needs the ID value properly filled up, otherwise the merge will fail later. To solve that, I used StoreGenerated.Identity (IsGeneratedId == true) (set in the EDM) to indicate that if this is an update, just Insert() the PK value into the temp table. And it works with Insert() on primary key column as well. It feels like a hack, though, as it shouldn't be this way for just for a temp table and also it works in SQL Server without it anyways...I dunno. Maybe SQL Server and SQLite works differently?
+- In SQLite EDM, there was a need to use StoreGenerated.Identity type in the column properties for primary keys. I only found IsComputed that is StoreGenerated.Computed (in EDM) being used and is not sufficient/correct. The way the UpdateAll() bulk operation needed was to make a SQLite temp table the same as the orig table columns, including the primary key ID column and the other columns to update...so much so that if it sees a column with primary key property, it will call bulk operation Insert() to insert the ID value into the temp table. However, it will not insert it as it is StoreGenerated.Computed (IsComputed == true). There will also be conflict with Insert() if this IsComputed == true is used, as it will then refuse to insert any primary key column at all. The Update() temp table needs the ID value properly filled up, otherwise the merge will fail later. To solve that, I used StoreGenerated.Identity (IsGeneratedId == true) (set in the EDM) to indicate that if this is an update, just Insert() the PK value into the temp table. And it works with Insert() on primary key column as well. It feels like a hack, though, as it shouldn't be this way just for a temp table and also it works without it in SQL Server anyways...I dunno. Maybe SQL Server and SQLite works differently?
 - So to summarize how to use bulk operations for SQLite EF: 
 
         (1) In the SQLite EDM diagrams, set the columns for primary keys as StoreGenerated.Identity type (using other types will get you in trouble on UpdateAll()).
-        (2) Using StoreGenerated.Identity means that on InsertAll() it will add that PK column with null values and on UpdateAll() it will set the correct PK values in the temptable.
+        (2) Using StoreGenerated.Identity means that on InsertAll() it will add that PK column with null values and on UpdateAll() that PK column will be set to the correct PK values during update.
         (3) Use the Async versions (UpdateAllAsync() and InsertAllAsync()) if you need it. Internally, the non-async versions will just call the async ones.
         (4) Minimum .Net v4.5 instead of v4.0
         (5) Using the System.Data.SQLite v1.0.113.0 (SQLite v3.32.1) and its EF providers.
